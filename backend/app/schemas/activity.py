@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class RoutePoint(BaseModel):
@@ -35,8 +35,7 @@ class ActivityRead(BaseModel):
     distance_meters: int
     avg_heart_rate: Optional[int]
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ActivityNearbyQuery(BaseModel):

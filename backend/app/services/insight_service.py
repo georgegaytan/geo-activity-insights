@@ -25,4 +25,6 @@ def enqueue_insight_job(report_id: UUID) -> None:
 
 
 def get_insight(db: Session, insight_id: UUID) -> Optional[InsightReport]:
-    return db.execute(select(InsightReport).where(InsightReport.id == insight_id)).scalar_one_or_none()
+    return db.scalars(
+        select(InsightReport).where(InsightReport.id == insight_id)
+    ).one_or_none()

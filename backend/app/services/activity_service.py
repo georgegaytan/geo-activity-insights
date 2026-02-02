@@ -19,9 +19,9 @@ def _route_to_linestring(route_points: Iterable[dict]) -> LineString:
 def upsert_activity_from_webhook(db: Session, payload: dict) -> Activity:
     activity_data = ActivityCreate(**payload)
 
-    existing: Optional[Activity] = db.execute(
+    existing: Optional[Activity] = db.scalars(
         select(Activity).where(Activity.external_id == activity_data.external_id)
-    ).scalar_one_or_none()
+    ).one_or_none()
 
     line = _route_to_linestring([p.dict() for p in activity_data.route])
     geo = from_shape(line, srid=4326)
@@ -56,7 +56,10 @@ def upsert_activity_from_webhook(db: Session, payload: dict) -> Activity:
 
 
 def list_activities(db: Session) -> List[Activity]:
-    return list(db.execute(select(Activity).order_by(Activity.start_time.desc())).scalars())
+    return db.scalars(
+        select(Activity).order_by(Activity.start_time.desc())
+    ).all()
+
 
 
 def find_activities_nearby(db: Session, lat: float, lon: float, radius_meters: int) -> List[Activity]:
@@ -72,7 +75,7 @@ def find_activities_nearby(db: Session, lat: float, lon: float, radius_meters: i
         )
         .order_by(Activity.start_time.desc())
     )
-    return list(db.execute(stmt).scalars())
+    return db.scalars(stmt).all()
 
 
 def create_insight_report(db: Session, activity_id: UUID) -> InsightReport:
