@@ -19,8 +19,8 @@ Ingests Strava workouts, stores routes in PostGIS, and serves AI‑powered insig
 ## Architecture Overview
 
 ```
-┌─────────────┐   OAuth   ┌─────────────┐   Webhook   ┌─────────────┐
-│   Strava    │◄──────────►│   FastAPI   │◄──────────►│   Strava    │
+┌─────────────┐   OAuth   ┌─────────────┐   Webhook ┌─────────────┐
+│   Strava    │◄─────────►│   FastAPI   │◄─────────►│   Strava    │
 │   API       │           │   Backend   │           │   Webhook   │
 └─────────────┘           └─────┬───────┘           └─────────────┘
                                  │
@@ -28,7 +28,7 @@ Ingests Strava workouts, stores routes in PostGIS, and serves AI‑powered insig
        │                         │                         │
 ┌──────▼───────┐    ┌────────────▼─────┐    ┌──────────────▼──────┐
 │ PostgreSQL   │    │   Redis Queue    │    │   Worker (Python)   │
-│ + PostGIS    │    │   (RQ‑style)     │    │   + Mock LLM       │
+│ + PostGIS    │    │   (RQ‑style)     │    │   + Mock LLM        │
 └──────────────┘    └──────────────────┘    └─────────────────────┘
                                  │
                          ┌───────▼───────┐
