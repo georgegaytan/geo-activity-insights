@@ -17,6 +17,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.now(), nullable=False)
 
     activities = relationship("Activity", back_populates="user")
+    strava_accounts = relationship("StravaAccount", back_populates="user")
 
 
 class Activity(Base):
@@ -53,3 +54,16 @@ class InsightReport(Base):
     created_at = Column(DateTime, default=datetime.now(), nullable=False)
 
     activity = relationship("Activity", back_populates="insights")
+
+
+class StravaAccount(Base):
+    __tablename__ = "strava_accounts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    athlete_id = Column(Integer, unique=True, nullable=False, index=True)
+    access_token = Column(String, nullable=False)
+    refresh_token = Column(String, nullable=False)
+    expires_at = Column(Integer, nullable=False)
+
+    user = relationship("User", back_populates="strava_accounts")

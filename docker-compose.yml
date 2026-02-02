@@ -22,6 +22,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/geo_activities
       REDIS_URL: redis://redis:6379/0
+      STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID}
+      STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET}
       INSIGHT_QUEUE_KEY: insight_jobs
     depends_on:
       - db

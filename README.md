@@ -155,8 +155,8 @@ curl -X POST http://localhost:8000/webhooks/strava \
     "distance_meters": 10000,
     "avg_heart_rate": 150,
     "route": [
-      {"lat": 37.7749, "lon": -122.4194},
-      {"lat": 37.7849, "lon": -122.4094}
+      {"lat": 47.3769, "lon": 8.5417},
+      {"lat": 47.3742, "lon": 8.5442}
     ]
   }'
 ```

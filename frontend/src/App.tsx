@@ -49,7 +49,7 @@ async function fetchInsight(id: string): Promise<Insight> {
 
 const App: React.FC = () => {
   const queryClient = useQueryClient();
-  const [nearbyParams, setNearbyParams] = useState({ lat: 37.7749, lon: -122.4194, radius_meters: 1000 });
+  const [nearbyParams, setNearbyParams] = useState({ lat: 47.3769, lon: 8.5417, radius_meters: 1000 });
   const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
 
   const activitiesQuery = useQuery({ queryKey: ['activities'], queryFn: fetchActivities });
@@ -83,7 +83,11 @@ const App: React.FC = () => {
       <section style={{ marginBottom: '2rem' }}>
         <h2>Activity Dashboard</h2>
         {activitiesQuery.isLoading && <p>Loading activities...</p>}
-        {activitiesQuery.error && <p>Error loading activities</p>}
+        {activitiesQuery.error && (
+          <p>
+            Error loading activities: {(activitiesQuery.error as Error).message}
+          </p>
+        )}
         {activitiesQuery.data && (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -154,7 +158,11 @@ const App: React.FC = () => {
           <button type="submit">Search</button>
         </form>
         {nearbyQuery.isLoading && <p>Searching...</p>}
-        {nearbyQuery.error && <p>Error searching nearby activities</p>}
+        {nearbyQuery.error && (
+          <p>
+            Error searching nearby activities: {(nearbyQuery.error as Error).message}
+          </p>
+        )}
         {nearbyQuery.data && <p>Found {nearbyQuery.data.length} activities within radius.</p>}
       </section>
 

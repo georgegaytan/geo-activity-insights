@@ -20,3 +20,7 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Env files
+.env
+backend/.env
