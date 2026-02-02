@@ -47,16 +47,58 @@ async function fetchInsight(id: string): Promise<Insight> {
   return res.json();
 }
 
+async function importStravaActivities(athleteId?: number, perPage = 10): Promise<{ imported: number }> {
+  const res = await fetch(`${API_BASE}/strava/import-activities`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ athlete_id: athleteId, per_page: perPage }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to import Strava activities');
+  }
+  return res.json();
+}
+
+async function exchangeStravaCode(code: string): Promise<{ athlete_id: number }> {
+  const res = await fetch(`${API_BASE}/strava/oauth/exchange`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to exchange Strava code');
+  }
+  return res.json();
+}
+
 const App: React.FC = () => {
   const queryClient = useQueryClient();
   const [nearbyParams, setNearbyParams] = useState({ lat: 47.3769, lon: 8.5417, radius_meters: 1000 });
   const [selectedInsightId, setSelectedInsightId] = useState<string | null>(null);
+  const [authCode, setAuthCode] = useState('');
 
   const activitiesQuery = useQuery({ queryKey: ['activities'], queryFn: fetchActivities });
 
   const nearbyQuery = useQuery({
     queryKey: ['nearby', nearbyParams],
     queryFn: () => fetchNearby(nearbyParams.lat, nearbyParams.lon, nearbyParams.radius_meters),
+  });
+
+  const importMutation = useMutation({
+    mutationFn: () => importStravaActivities(undefined, 10),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
+
+  const exchangeMutation = useMutation({
+    mutationFn: () => exchangeStravaCode(authCode),
+    onSuccess: (data) => {
+      setAuthCode('');
+      // Optionally refresh activities after a successful import later
+    },
   });
 
   const insightMutation = useMutation({
@@ -79,6 +121,67 @@ const App: React.FC = () => {
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem', fontFamily: 'system-ui, sans-serif' }}>
       <h1>Geo Activity Insights</h1>
+
+      <section style={{ marginBottom: '1.5rem' }}>
+        <h2>Seed from Strava</h2>
+        <p style={{ maxWidth: 640 }}>
+          Connect your Strava account and import recent activities. The flow is:
+        </p>
+        <ol style={{ maxWidth: 640, lineHeight: 1.6 }}>
+          <li>
+            <a
+              href="https://www.strava.com/oauth/authorize?client_id=199669&response_type=code&redirect_uri=http://localhost:8000/strava/oauth/callback&scope=activity:read_all&approval_prompt=force"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Authorize with Strava
+            </a>{' '}
+            → you’ll land on a page showing a <strong>code</strong>.
+          </li>
+          <li>Paste the code below and click <strong>Exchange code</strong>.</li>
+          <li>Click <strong>Import recent Strava activities</strong>.</li>
+        </ol>
+
+        <div style={{ marginTop: '1rem' }}>
+          <input
+            type="text"
+            placeholder="Paste Strava authorization code here"
+            value={authCode}
+            onChange={(e) => setAuthCode(e.target.value)}
+            style={{ width: '100%', maxWidth: 500, padding: '0.5rem', marginBottom: '0.5rem' }}
+          />
+          <br />
+          <button onClick={() => exchangeMutation.mutate()} disabled={!authCode.trim() || exchangeMutation.isPending}>
+            {exchangeMutation.isPending ? 'Exchanging…' : 'Exchange code'}
+          </button>
+          {exchangeMutation.data && (
+            <p style={{ marginTop: '0.5rem' }}>
+              ✅ Tokens saved for athlete_id {exchangeMutation.data.athlete_id}. You can now import activities.
+            </p>
+          )}
+          {exchangeMutation.error && (
+            <p style={{ marginTop: '0.5rem', color: 'red' }}>
+              Exchange error: {(exchangeMutation.error as Error).message}
+            </p>
+          )}
+        </div>
+
+        <div style={{ marginTop: '1.5rem' }}>
+          <button onClick={() => importMutation.mutate()} disabled={importMutation.isPending}>
+            {importMutation.isPending ? 'Importing…' : 'Import recent Strava activities'}
+          </button>
+          {importMutation.data && (
+            <p style={{ marginTop: '0.5rem' }}>
+              Imported {importMutation.data.imported} activities from Strava.
+            </p>
+          )}
+          {importMutation.error && (
+            <p style={{ marginTop: '0.5rem', color: 'red' }}>
+              Import error: {(importMutation.error as Error).message}
+            </p>
+          )}
+        </div>
+      </section>
 
       <section style={{ marginBottom: '2rem' }}>
         <h2>Activity Dashboard</h2>

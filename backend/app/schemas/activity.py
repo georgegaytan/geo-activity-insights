@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class RoutePoint(BaseModel):
@@ -17,8 +17,16 @@ class ActivityBase(BaseModel):
     start_time: datetime
     duration_seconds: int
     distance_meters: int
-    avg_heart_rate: Optional[int]
+    avg_heart_rate: Optional[Union[int, float]]
     route: List[RoutePoint]
+
+    @field_validator('avg_heart_rate', mode='before')
+    @classmethod
+    def coerce_avg_heart_rate(cls, v):
+        if v is None:
+            return None
+        # Accept both int and float, but store as int (rounded)
+        return int(round(v))
 
 
 class ActivityCreate(ActivityBase):
