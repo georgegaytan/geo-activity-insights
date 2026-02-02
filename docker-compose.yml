@@ -20,7 +20,7 @@ services:
   backend:
     build: ./backend
     environment:
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/geo_activities
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/geo_activities
       REDIS_URL: redis://redis:6379/0
       INSIGHT_QUEUE_KEY: insight_jobs
     depends_on:
@@ -30,9 +30,11 @@ services:
       - "8000:8000"
 
   worker:
-    build: ./worker
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
     environment:
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/geo_activities
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/geo_activities
       REDIS_URL: redis://redis:6379/0
       INSIGHT_QUEUE_KEY: insight_jobs
       WORKER_POLL_INTERVAL: 2

@@ -1,9 +1,10 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.0
 SQLAlchemy==2.0.23
-psycopg2-binary==2.9.9
+psycopg[binary]==3.3.2
 pydantic==1.10.14
 geoalchemy2==0.15.2
-shapely==2.0.3
+shapely==2.1.2
+numpy==2.3.3
 redis==5.0.3
 python-dotenv==1.0.1

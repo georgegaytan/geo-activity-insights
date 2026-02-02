@@ -87,7 +87,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 
 # in another shell, from project root
-export DATABASE_URL=postgresql+psycopg2://postgres:postgres@localhost:5432/geo_activities
+export DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/geo_activities
 export REDIS_URL=redis://localhost:6379/0
 python -m worker.worker
 ```
