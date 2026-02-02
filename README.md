@@ -2,6 +2,10 @@
 
 Prototype system for ingesting geospatial workout activities, storing them in PostGIS, and generating asynchronous AI-powered insight reports.
 
+Proof of Concept built in a day:
+<img width="940" height="1055" alt="image" src="https://github.com/user-attachments/assets/bef63c06-5da7-4a88-94f9-88762750a66f" />
+
+
 ## Overview
 
 - Ingests workout activities from a simulated Strava-like webhook
