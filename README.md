@@ -22,7 +22,7 @@ Ingests Strava workouts, stores routes in PostGIS, and serves AI‑powered insig
 ┌─────────────┐   OAuth   ┌─────────────┐   Webhook ┌─────────────┐
 │   Strava    │◄─────────►│   FastAPI   │◄─────────►│   Strava    │
 │   API       │           │   Backend   │           │   Webhook   │
-└─────────────┘           └─────┬───────┘           └─────────────┘
+└─────────────┘           └──────┬──────┘           └─────────────┘
                                  │
        ┌─────────────────────────┼─────────────────────────┐
        │                         │                         │
