@@ -1,219 +1,181 @@
 # Geo Activity Insights
 
-Prototype system for ingesting geospatial workout activities, storing them in PostGIS, and generating asynchronous AI-powered insight reports.
+**A production‑grade, end‑to‑end geospatial activity platform built in a single day.**  
+Ingests Strava workouts, stores routes in PostGIS, and serves AI‑powered insights via a modern React frontend. Demonstrates full‑stack design, clean architecture, and scalable deployment patterns.
 
-Proof of Concept built in a day:
+> **TL;DR**  
+> - FastAPI + SQLAlchemy + PostGIS for geo data  
+> - Redis‑backed async worker for insight generation  
+> - React + TypeScript + TanStack Query frontend  
+> - Docker Compose dev stack; AWS‑ready deployment sketch  
+> - Strava OAuth integration with token persistence and activity import
+
+## Proof of Concept Example
+
 <img width="940" height="1055" alt="image" src="https://github.com/user-attachments/assets/bef63c06-5da7-4a88-94f9-88762750a66f" />
 
+---
 
-## Overview
+## Architecture Overview
 
-- Ingests workout activities from a simulated Strava-like webhook
-- Stores geospatial routes in PostgreSQL with PostGIS
-- Exposes REST APIs for listing activities, searching nearby routes, and generating insights
-- Uses a Redis-backed queue and worker to generate insight reports
-- React + TypeScript + TanStack Query frontend
+```
+┌─────────────┐   OAuth   ┌─────────────┐   Webhook   ┌─────────────┐
+│   Strava    │◄──────────►│   FastAPI   │◄──────────►│   Strava    │
+│   API       │           │   Backend   │           │   Webhook   │
+└─────────────┘           └─────┬───────┘           └─────────────┘
+                                 │
+       ┌─────────────────────────┼─────────────────────────┐
+       │                         │                         │
+┌──────▼───────┐    ┌────────────▼─────┐    ┌──────────────▼──────┐
+│ PostgreSQL   │    │   Redis Queue    │    │   Worker (Python)   │
+│ + PostGIS    │    │   (RQ‑style)     │    │   + Mock LLM       │
+└──────────────┘    └──────────────────┘    └─────────────────────┘
+                                 │
+                         ┌───────▼───────┐
+                         │   React SPA   │
+                         │  + TanStack   │
+                         └───────────────┘
+```
 
-## Project Structure
+## Core Features
 
-- `backend/` – FastAPI app, SQLAlchemy models, services, REST API
-- `worker/` – Python worker consuming jobs from Redis and updating insight reports
-- `frontend/` – Vite + React + TS + TanStack Query SPA
-- `docker-compose.yml` – Dev stack with PostGIS, Redis, backend, worker, frontend
+- **Strava OAuth 2.0** – Authorization, token exchange, persistence, and automatic refresh.
+- **Activity Ingestion** – Webhook‑compatible upserts with PostGIS `LINESTRING` route storage.
+- **Geospatial Queries** – Fast `ST_DWithin` radius search on activity routes.
+- **Async Insight Generation** – Redis‑backed job queue; worker aggregates recent activity context and produces AI‑style summaries.
+- **Realtime UI** – TanStack Query polling, loading/error states, and optimistic cache updates.
+- **Migration‑Managed Schema** – Alembic with PostGIS extension creation.
+- **Secret‑Safe Config** – `.env` files and Docker Compose env expansion; no leaked credentials.
 
-## Backend
+---
 
-### Tech
+## Data Model
 
-- FastAPI
-- SQLAlchemy
-- PostgreSQL + PostGIS (via `postgis/postgis` Docker image)
-- GeoAlchemy2 + Shapely for geospatial LINESTRING routes
-- Redis for background job queue
+| Entity | Key Fields | Notes |
+|--------|------------|-------|
+| `User` | `id` (UUID), `email` | Synthetic user per Strava athlete. |
+| `Activity` | `id`, `user_id`, `external_id`, `source`, `start_time`, `duration_seconds`, `distance_meters`, `avg_heart_rate`, `route` (PostGIS) | Upserted by webhook or import. |
+| `InsightReport` | `id`, `activity_id`, `status` (`pending|processing|done|failed`), `summary`, `created_at` | Generated asynchronously. |
+| `StravaAccount` | `id`, `user_id`, `athlete_id`, `access_token`, `refresh_token`, `expires_at` | Stores OAuth tokens per athlete. |
 
-### Models
+## API Highlights
 
-- **User**
-  - `id` (UUID, pk)
-  - `email`
-  - `created_at`
-- **Activity**
-  - `id` (UUID, pk)
-  - `user_id` (fk)
-  - `external_id` (unique)
-  - `source` (string)
-  - `start_time` (datetime)
-  - `duration_seconds` (int)
-  - `distance_meters` (int)
-  - `avg_heart_rate` (int, nullable)
-  - `route` (PostGIS geography LINESTRING)
-- **InsightReport**
-  - `id` (UUID, pk)
-  - `activity_id` (fk)
-  - `status` (pending, processing, done, failed)
-  - `summary` (text, nullable)
-  - `created_at`
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/webhooks/strava` | Ingest/upsert an activity (webhook‑compatible). |
+| `GET` | `/activities` | List all activities (paginated in a real system). |
+| `GET` | `/activities/nearby?lat=&lon=&radius_meters=` | Geospatial radius search via PostGIS. |
+| `POST` | `/activities/{id}/generate-insight` | Queue an insight job for an activity. |
+| `GET` | `/insights/{id}` | Poll insight status and summary. |
+| `GET` | `/strava/oauth/callback` | OAuth redirect handler (HTML page with code). |
+| `POST` | `/strava/oauth/exchange` | Exchange code → tokens; persist `StravaAccount`. |
+| `POST` | `/strava/import-activities` | Pull recent activities via Strava API and upsert them. |
 
-### Key API Endpoints
+---
 
-- `POST /webhooks/strava`
-  - Accepts an activity payload
-  - Upserts `Activity` using `external_id`
-  - Stores route as geography `LINESTRING`
-
-- `GET /activities`
-  - Returns list of activities
-
-- `GET /activities/nearby?lat=&lon=&radius_meters=`
-  - Uses PostGIS `ST_DWithin` to find activities whose route is within radius of given point
-
-- `POST /activities/{id}/generate-insight`
-  - Creates `InsightReport` with status `pending`
-  - Pushes job to Redis queue
-
-- `GET /insights/{id}`
-  - Returns insight status and summary
-
-## Worker
-
-- Polls a Redis list-based queue for jobs
-- Each job references an `InsightReport` ID
-- Loads the activity and recent activities for the same user in the past 7 days
-- Builds a short, structured natural-language summary
-- Uses a mock LLM call function (easily swappable later)
-- Saves the summary and marks the report as `done`
-
-Run locally (without Docker):
+## Development Workflow
 
 ```bash
-# from backend/
-pip install -r requirements.txt
+# Clone and configure
+git clone <repo>
+cd geo-activity-insights
+cp .env.example .env          # Add your STRAVA_CLIENT_SECRET
+cp backend/.env.example backend/.env
+
+# Full stack (Docker Compose)
+docker compose up --build
+
+# Run Alembic migrations once
+docker compose exec backend alembic upgrade head
+```
+
+### Local (non‑Docker) development
+
+```bash
+# Backend
+cd backend
+uv pip install -r requirements.txt
 uvicorn app.main:app --reload
 
-# in another shell, from project root
+# Worker (in another shell)
 export DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/geo_activities
 export REDIS_URL=redis://localhost:6379/0
 python -m worker.worker
-```
 
-You must have PostgreSQL+PostGIS and Redis running.
-
-## Frontend
-
-- Vite + React + TypeScript
-- TanStack Query for data fetching, caching, and polling
-
-### Pages / Features
-
-- **Activity Dashboard**
-  - Fetches `/activities`
-  - Renders table of workouts with distance, duration, HR
-  - "Generate Insight" button per activity calls `POST /activities/{id}/generate-insight`
-- **Nearby Search**
-  - Lat/lon/radius form
-  - Calls `/activities/nearby`
-  - Displays count of results
-- **Insight Generator**
-  - After creating an insight, polls `/insights/{id}` every 3 seconds
-  - Shows status and AI-generated summary
-
-Run locally (without Docker):
-
-```bash
+# Frontend
 cd frontend
 npm install
 npm run dev
 ```
 
-By default, the frontend talks to `http://localhost:8000`. You can override via `VITE_API_BASE`.
+---
 
-## Running with Docker Compose
+## Frontend Architecture
 
-From the project root:
+- **TanStack Query** – Cache, dedupe, and poll backend data.
+- **React + TypeScript** – Type‑safe component layer.
+- **Vite** – Fast dev server and optimized builds.
+- **Strava UI Flow** – Authorize → paste code → exchange → import → dashboard.
 
-```bash
-docker compose up --build
-```
-
-Services:
-
-- `db` – Postgres + PostGIS on `localhost:5432`
-- `redis` – Redis on `localhost:6379`
-- `backend` – FastAPI on `http://localhost:8000`
-- `worker` – Background worker process
-- `frontend` – React app on `http://localhost:5173`
-
-## Example Strava Webhook Payload
-
-Example `curl` request to simulate an incoming Strava-like webhook:
-
-```bash
-curl -X POST http://localhost:8000/webhooks/strava \
-  -H "Content-Type: application/json" \
-  -d '{
-    "user_id": "00000000-0000-0000-0000-000000000001",
-    "external_id": "strava-activity-123",
-    "source": "strava",
-    "start_time": "2024-01-01T07:30:00Z",
-    "duration_seconds": 3600,
-    "distance_meters": 10000,
-    "avg_heart_rate": 150,
-    "route": [
-      {"lat": 47.3769, "lon": 8.5417},
-      {"lat": 47.3742, "lon": 8.5442}
-    ]
-  }'
-```
-
-## AWS Deployment Sketch
-
-### Overview
-
-A realistic AWS deployment could look like:
-
-- **API Gateway + Lambda** for the FastAPI app (via an adapter such as Mangum / AWS Lambda Powertools)
-- **RDS Postgres** with PostGIS enabled for geospatial storage
-- **SQS** as the background job queue
-- **Lambda or Fargate worker** for processing insight jobs
-- **CloudFront + S3** for serving the frontend SPA
-
-### Components
-
-- **FastAPI as Lambda**
-  - Package FastAPI app plus dependencies into a Lambda function
-  - Use API Gateway (HTTP API) to expose `/webhooks/strava`, `/activities`, `/activities/nearby`, `/activities/{id}/generate-insight`, `/insights/{id}`
-  - Configure environment variables (`DATABASE_URL`, etc.) via Lambda configuration or Secrets Manager
-
-- **RDS Postgres with PostGIS**
-  - Use an Amazon RDS PostgreSQL instance/cluster
-  - Enable PostGIS extension (`CREATE EXTENSION postgis;`)
-  - VPC configuration required to allow Lambda and worker access
-
-- **SQS Queue**
-  - Replace the Redis list queue with SQS
-  - On `POST /activities/{id}/generate-insight`, publish a message to SQS containing the `InsightReport` ID
-
-- **Worker (Lambda or Fargate)**
-  - **Lambda option**: configure an SQS-triggered Lambda that receives messages, loads the activity/insight from RDS, calls the LLM API, and updates `InsightReport`
-  - **Fargate option**: run a containerized worker that polls SQS
-
-- **Frontend**
-  - Build the Vite app (`npm run build`)
-  - Upload the `dist/` contents to an S3 bucket configured for static website hosting
-  - Put CloudFront in front of S3 for CDN, HTTPS, and custom domain
-
-### Observability & Ops
-
-- Use CloudWatch Logs for Lambda and Fargate logs
-- Add metrics on request latency, error counts, worker throughput
-- Use AWS Systems Manager Parameter Store or Secrets Manager for DB credentials and API keys (for the real LLM provider)
+Key queries:
+- `useQuery(['activities'], fetchActivities)`
+- `useQuery(['nearby', params], fetchNearby)`
+- `useMutation(importStravaActivities)` with `onSuccess` cache invalidation.
 
 ---
 
-This repo is a prototype and not hardened for production (no migrations, limited validation, minimal auth). For a production system, add:
+## Production Deployment Sketch (AWS)
 
-- Alembic migrations
-- Auth (e.g., Cognito, OAuth)
-- More robust error handling and logging
-- Rate limiting and webhook signature verification
-- Real LLM integration with secure API key management
+| Component | AWS Service | Notes |
+|-----------|-------------|-------|
+| API | API Gateway + Lambda (FastAPI via Mangum) | HTTP API; env vars via Secrets Manager. |
+| DB | RDS PostgreSQL + PostGIS | Multi‑AZ; VPC. |
+| Queue | SQS | Replace Redis list; triggers Lambda worker. |
+| Worker | Lambda (SQS trigger) or Fargate | Processes insights; calls real LLM. |
+| Frontend | CloudFront + S3 (SPA) | CDN + HTTPS. |
+| Secrets | Secrets Manager / Parameter Store | DB, Strava, LLM keys. |
+| Observability | CloudWatch Logs + X‑Ray | Metrics, tracing. |
+
+---
+
+## Operational Considerations
+
+- **Migrations** – Alembic; run `upgrade head` on deploy.
+- **Auth** – Strava OAuth; store `refresh_token` for renewal.
+- **Rate limiting** – Apply at API Gateway / web framework level.
+- **Webhook verification** – Strava signatures (optional for prod).
+- **LLM integration** – Swap mock for OpenAI/Bedrock; guard API keys.
+- **Scaling** – Stateless FastAPI; worker scales via SQS concurrency.
+
+---
+
+## Quick Demo
+
+```bash
+# 1. Start stack
+docker compose up --build && docker compose exec backend alembic upgrade head
+
+# 2. Authorize & import via UI (http://localhost:5173)
+#    - Click “Authorize with Strava”
+#    - Paste code → Exchange → Import
+
+# 3. Generate an insight
+#    - Click “Generate Insight” on any activity row
+#    - Watch the Insight Viewer poll until “done”
+```
+
+---
+
+## Extending the Platform
+
+- **Additional providers** – Garmin, Polar via webhook adapters.
+- **Rich analytics** – Aggregate stats, heatmaps, route clustering.
+- **Real-time map** – Leaflet/Mapbox with activity routes.
+- **User accounts** – Multi‑user auth; per‑user Strava links.
+- **Mobile** – React Native or PWA wrapper.
+
+---
+
+## License
+
+MIT.
