@@ -10,7 +10,7 @@ Ingests Strava workouts, stores routes in PostGIS, and serves AI‑powered insig
 > - Docker Compose dev stack; AWS‑ready deployment sketch  
 > - Strava OAuth integration with token persistence and activity import
 
-## Proof of Concept Example
+## Day 1 Proof of Concept
 
 <img width="940" height="1055" alt="image" src="https://github.com/user-attachments/assets/bef63c06-5da7-4a88-94f9-88762750a66f" />
 
@@ -22,7 +22,7 @@ Ingests Strava workouts, stores routes in PostGIS, and serves AI‑powered insig
 ┌─────────────┐   OAuth   ┌─────────────┐   Webhook ┌─────────────┐
 │   Strava    │◄─────────►│   FastAPI   │◄─────────►│   Strava    │
 │   API       │           │   Backend   │           │   Webhook   │
-└─────────────┘           └─────┬───────┘           └─────────────┘
+└─────────────┘           └──────┬──────┘           └─────────────┘
                                  │
        ┌─────────────────────────┼─────────────────────────┐
        │                         │                         │
